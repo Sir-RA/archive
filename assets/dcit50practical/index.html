@@ -1,0 +1,271 @@
+Main.java
+<hr>
+<pre>
+import java.util.Scanner;
+
+class Main {
+	public static void main(String[] args) {
+		System.out.println("Turn Based RPG");
+		System.out.println("--------------");
+		System.out.println("[1] Play");
+		System.out.println("[2] Quit");
+
+		Scanner sc = new Scanner(System.in);
+		String input = sc.nextLine();
+
+		switch (input) {
+			case "1":
+				playGame(sc);
+				break;
+			case "2":
+				break;
+		}
+
+		sc.close();
+	}
+
+	static void playGame(Scanner sc) {
+		Player player = new Player("Steve");
+		player.showWeapons();
+
+		// Wave 1: a single knight
+		player.seeEnemy(new Knight());
+		battle(player, sc);
+
+		// Wave 2: a knight and two wizards
+		player.seeEnemy(new Knight());
+		player.seeEnemy(new Wizard());
+		player.seeEnemy(new Wizard());
+		battle(player, sc);
+
+		if (player.hp <= 0) {
+			System.out.println("You lose...");
+		} else {
+			System.out.println("You win!!!");
+		}
+	}
+
+	// One wave of combat. Players and enemies take turns until the player
+	// is dead or every visible enemy is gone.
+	static void battle(Player player, Scanner sc) {
+		while (!player.visibleEnemies.isEmpty() && player.hp > 0) {
+			player.playerTurn(sc);
+			for (Enemy enemy : player.visibleEnemies) {
+				enemy.enemyTurn(player, sc);
+			}
+		}
+	}
+}
+</pre>
+Player.java
+<hr>
+<pre>
+import java.util.ArrayList;
+import java.util.Scanner;
+
+class Player {
+	String name;
+	int hp;
+	ArrayList<Weapon> weapons = new ArrayList<>();
+	ArrayList<Enemy> visibleEnemies = new ArrayList<>();
+
+	Player(String name) {
+		this.name = name;
+		this.hp = 3;
+		this.weapons.add(new Sword());
+		this.weapons.add(new Staff());
+	}
+
+	void seeEnemy(Enemy enemy) {
+		System.out.println();
+		System.out.println(this.name + " sees the " + enemy.name + "!");
+		System.out.println("\t" + enemy);
+		visibleEnemies.add(enemy);
+	}
+
+	void showWeapons() {
+		System.out.println(this.name + "'s weapons:");
+		for (Weapon weapon : weapons) {
+			System.out.println("  " + weapon);
+		}
+	}
+
+	void attack(Enemy enemy, Weapon weapon) {
+		System.out.println(this.name + " attacks " + enemy.name + " with the " + weapon.name);
+		if (weapon.canHurt(enemy)) {
+			enemy.hp -= weapon.damage;
+			if (enemy.hp <= 0) {
+				visibleEnemies.remove(enemy);
+				System.out.println("The " + enemy.name + " is defeated!");
+				return;
+			}
+		}
+		System.out.println("\t" + enemy);
+	}
+
+	void playerTurn(Scanner sc) {
+		System.out.println();
+		System.out.println("--- " + this.name + "'s turn (" + this.hp + " HP) ---");
+		System.out.println("What do you do?");
+		for (int i = 0; i < visibleEnemies.size(); i++) {
+			System.out.println("\t[" + i + "] Attack " + visibleEnemies.get(i));
+		}
+		System.out.print("> ");
+		int enemyIndex = Integer.parseInt(sc.nextLine());
+
+		System.out.println("With which weapon?");
+		for (int i = 0; i < weapons.size(); i++) {
+			System.out.println("\t[" + i + "] " + weapons.get(i));
+		}
+		System.out.print("> ");
+		int weaponIndex = Integer.parseInt(sc.nextLine());
+
+		attack(visibleEnemies.get(enemyIndex), weapons.get(weaponIndex));
+	}
+}
+</pre>
+Weapon.java
+<hr>
+<pre>
+import java.util.ArrayList;
+
+class Weapon {
+	String name;
+	int damage;
+	ArrayList<String> hurtableEnemies = new ArrayList<>();
+
+	Weapon(String name, int damage) {
+		this.name = name;
+		this.damage = damage;
+	}
+
+	boolean canHurt(Enemy enemy) {
+		for (String enemyName : hurtableEnemies) {
+			if (enemy.name.contains(enemyName)) {
+				return true;
+			}
+		}
+		System.out.println("The " + this.name + " can't hurt the " + enemy.name + "!");
+		return false;
+	}
+
+	@Override
+	public String toString() {
+		return this.name + ": " + this.damage + " Damage";
+	}
+}
+</pre>
+Sword.java
+<hr>
+<pre>
+class Sword extends Weapon {
+	Sword() {
+		super("sword", 1);
+		this.hurtableEnemies.add("wizard");
+	}
+}
+</pre>
+Staff.java
+<hr>
+<pre>
+import java.util.Random;
+import java.util.Scanner;
+
+class Enemy {
+	String name;
+	int hp;
+	int damage;
+	int answer;
+	Random rand = new Random();
+
+	Enemy(String name, int hp, int damage) {
+		this.name = name;
+		this.hp = hp;
+		this.damage = damage;
+	}
+
+	@Override
+	public String toString() {
+		return this.name + ": " + this.hp + " HP, " + this.damage + " Damage";
+	}
+
+	void attack(Player player) {
+		System.out.println(this.name + " attacks " + player.name + " for " + this.damage + " damage!");
+		player.hp = Math.max(0, player.hp - this.damage);
+		System.out.println(player.name + " has " + player.hp + " HP left");
+		if (player.hp == 0) {
+			System.out.println(player.name + " has fallen...");
+		}
+	}
+
+	// A turn is: ask a question, and attack if the answer is wrong.
+	// Subclasses change the question by overriding makeQuestion().
+	void enemyTurn(Player player, Scanner sc) {
+		if (player.hp <= 0) {
+			return;
+		}
+		System.out.println();
+		System.out.println("--- " + this.name + "'s turn ---");
+		String question = makeQuestion();
+		if (!askQuestion(sc, question, this.answer)) {
+			attack(player);
+		}
+	}
+
+	// Build a question, store its correct answer in the answer field, and
+	// return the question text. The base enemy asks a simple addition.
+	String makeQuestion() {
+		int first = rand.nextInt(10);
+		int second = rand.nextInt(10);
+		this.answer = first + second;
+		return "What is " + first + " + " + second + "?";
+	}
+
+	// Ask the player a math question. Returns true if the answer is correct.
+	boolean askQuestion(Scanner sc, String question, int expected) {
+		System.out.println(this.name + " asks: " + question);
+		System.out.print("> ");
+		int input = Integer.parseInt(sc.nextLine());
+		if (input == expected) {
+			System.out.println("Correct! " + this.name + "'s attack is blocked.");
+			return true;
+		}
+		System.out.println("Wrong! The answer was " + expected + ".");
+		return false;
+	}
+}
+</pre>
+Wizard.java
+<hr>
+<pre>
+class Wizard extends Enemy {
+	Wizard() {
+		super("wizard", 2, 1);
+	}
+
+	@Override
+	String makeQuestion() {
+		int first = rand.nextInt(10);
+		int second = rand.nextInt(10);
+		this.answer = first * second;
+		return "What is " + first + " * " + second + "?";
+	}
+}
+</pre>
+Knight.java
+<hr>
+<pre>
+class Knight extends Enemy {
+	Knight() {
+		super("knight", 4, 1);
+	}
+
+	@Override
+	String makeQuestion() {
+		int first = rand.nextInt(100);
+		int second = rand.nextInt(100);
+		this.answer = first - second;
+		return "What is " + first + " - " + second + "?";
+	}
+}
+</pre>
